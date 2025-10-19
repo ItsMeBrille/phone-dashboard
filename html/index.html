@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard App</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --muted: #888;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            background-color: #121212;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .dashboard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .time {
+            font-size: 96px;
+            font-weight: 700;
+            letter-spacing: -4px;
+            text-align: center;
+        }
+
+        .date {
+            color: var(--muted);
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(18, 18, 18, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+        }
+
+        .menu-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 80px);
+            grid-gap: 30px;
+        }
+
+        .menu-grid button {
+            width: 80px;
+            height: 80px;
+            font-size: 32px;
+            color: white;
+            background-color: #1f1f1f;
+            border: none;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .menu-overlay.show .menu-grid button {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .menu-grid button:hover {
+            background-color: #333;
+        }
+
+        /* Countdown badge styles */
+        .countdown-badge {
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            min-width: 72px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .countdown-time {
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .countdown-remove {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+        }
+
+        /* Clock selector overlay (long-press) */
+        .clock-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 10000;
+        }
+
+        .clock-panel {
+            width: 280px;
+            background: #000;
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .clock-canvas {
+            width: 220px;
+            height: 220px;
+            touch-action: none;
+            border-radius: 50%;
+            background: transparent;
+        }
+
+        .clock-value {
+            color: #fff;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .clock-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .clock-btn {
+            background: #1f1f1f;
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .clock-btn.primary {
+            background: #fff;
+            color: #000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="dashboard">
+        <div class="time" id="clock">00:00</div>
+        <div class="date" id="date"></div>
+    </div>
+
+    <!-- Countdown container (top-left) -->
+    <div id="countdownContainer"
+        style="position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; gap: 8px; z-index: 9999;">
+    </div>
+
+    <div class="menu-overlay" id="menu">
+        <div class="menu-grid">
+            <button id="timerBtn"><i class="bi bi-clock"></i></button>
+            <button id="fetchBtn"><i class="bi bi-fork-knife"></i></button>
+        </div>
+    </div>
+
+    <!-- small toast for showing fetched H1 or errors -->
+    <div id="toast"
+        style="position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:rgba(0,0,0,0.8); color:#fff; padding:10px 14px; border-radius:8px; display:none; z-index:11000; box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+    </div>
+
+    <!-- pling audio file (place pling.mp3 next to this HTML) -->
+    <audio id="pling" src="pling.mp3" preload="auto"></audio>
+
+    <!-- Clock overlay for minute selection on long-press -->
+    <div id="clockOverlay" class="clock-overlay" aria-hidden="true">
+        <div class="clock-panel" role="dialog" aria-label="Select minutes">
+            <canvas id="clockCanvas" class="clock-canvas" width="220" height="220"></canvas>
+            <div class="clock-value" id="clockValue">5 min</div>
+            <div class="clock-actions">
+                <button id="clockCancel" class="clock-btn">Cancel</button>
+                <button id="clockSet" class="clock-btn primary">Set</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Clock update
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('clock').textContent = `${hours}:${minutes}`;
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            document.getElementById('date').textContent = now.toLocaleDateString(undefined, options);
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        const menu = document.getElementById('menu');
+        // Gesture state
+        let lastTap = 0, startX = 0, startY = 0, isSwipe = false, swipeHandled = false;
+        let pendingTapTimeout = null;
+        const DOUBLE_TAP_MS = 300;
+
+        function showMenu() {
+            menu.classList.add('show');
+            clearTimeout(menu.hideTimeout);
+            menu.hideTimeout = setTimeout(() => { menu.classList.remove('show'); }, 5000);
+        }
+
+        // Double-tap detection
+        document.body.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                isSwipe = false;
+                swipeHandled = false; // reset per-touch
+            }
+        });
+
+        document.body.addEventListener('touchend', e => {
+            const currentTime = Date.now();
+            const gap = currentTime - lastTap;
+            lastTap = currentTime;
+            if (swipeHandled) {
+                // already handled as swipe
+                return;
+            }
+            // double-tap detection: if previous tap within window, fire double-tap now
+            if (gap > 0 && gap < DOUBLE_TAP_MS) {
+                if (pendingTapTimeout) { clearTimeout(pendingTapTimeout); pendingTapTimeout = null; }
+                showMenu();
+                return;
+            }
+            // schedule single tap after double-tap window to avoid firing prematurely
+            if (pendingTapTimeout) { clearTimeout(pendingTapTimeout); }
+            pendingTapTimeout = setTimeout(() => {
+                singleTapOrSwipe('tap');
+                pendingTapTimeout = null;
+            }, DOUBLE_TAP_MS);
+        });
+
+        document.body.addEventListener('touchmove', e => {
+            if (e.touches.length === 1) {
+                const deltaX = e.touches[0].clientX - startX;
+                const deltaY = e.touches[0].clientY - startY;
+                // only trigger a swipe once per touch
+                if ((Math.abs(deltaX) > 30 || Math.abs(deltaY) > 30) && !swipeHandled) {
+                    isSwipe = true;
+                    swipeHandled = true;
+                    // cancel any scheduled single-tap since this touch became a swipe
+                    if (pendingTapTimeout) { clearTimeout(pendingTapTimeout); pendingTapTimeout = null; }
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                        singleTapOrSwipe(deltaX > 0 ? 'right' : 'left');
+                    } else {
+                        singleTapOrSwipe(deltaY > 0 ? 'down' : 'up');
+                    }
+                }
+            }
+        });
+
+        function singleTapOrSwipe(direction) {
+            console.log("Gesture detected:", direction);
+            // Place any function you want triggered here
+        }
+
+        // Hide menu on button click
+        document.querySelectorAll('.menu-grid button').forEach(btn => {
+            btn.addEventListener('click', () => { menu.classList.remove('show'); });
+        });
+
+        // Timer button functionality
+        // ======= Countdown timer implementation =======
+        (function () {
+            const container = document.getElementById('countdownContainer');
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            function playBeep() {
+                // Try HTMLAudioElement first (pling.mp3). If that fails (blocked), fallback to oscillator.
+                const audioEl = document.getElementById('pling');
+                if (audioEl) {
+                    // try play; browsers may require user gesture so handle Promise
+                    const p = audioEl.play();
+                    if (p && typeof p.then === 'function') {
+                        p.catch(() => {
+                            // fallback to oscillator
+                            tryOscillator();
+                        });
+                    }
+                    return;
+                }
+                tryOscillator();
+
+                function tryOscillator() {
+                    try {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.type = 'sine';
+                        o.frequency.value = 880;
+                        g.gain.value = 0.0001;
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        const now = audioCtx.currentTime;
+                        g.gain.exponentialRampToValueAtTime(0.2, now + 0.01);
+                        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+                        o.start(now);
+                        o.stop(now + 0.65);
+                    } catch (e) { console.warn('Audio error', e); }
+                }
+            }
+
+            function formatTime(ms) {
+                const totalSec = Math.max(0, Math.ceil(ms / 1000));
+                const min = Math.floor(totalSec / 60);
+                const sec = totalSec % 60;
+                return `${String(min).padStart(1, '0')}:${String(sec).padStart(2, '0')}`;
+            }
+
+            function createTimer(durationMs) {
+                const end = Date.now() + durationMs;
+                const el = document.createElement('div');
+                el.className = 'countdown-badge';
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'countdown-time';
+                timeSpan.textContent = formatTime(durationMs);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'countdown-remove';
+                removeBtn.innerHTML = '✕';
+                removeBtn.title = 'Remove';
+                removeBtn.addEventListener('click', () => { clearInterval(interval); el.remove(); });
+                el.appendChild(timeSpan);
+                el.appendChild(removeBtn);
+                container.appendChild(el);
+
+                const interval = setInterval(() => {
+                    const remaining = end - Date.now();
+                    if (remaining <= 0) {
+                        clearInterval(interval);
+                        timeSpan.textContent = '0:00';
+                        el.style.background = 'rgba(40,160,40,0.18)';
+                        playBeep();
+                        // auto-remove after a short delay
+                        setTimeout(() => el.remove(), 2500);
+                    } else {
+                        timeSpan.textContent = formatTime(remaining);
+                    }
+                }, 250);
+                return el;
+            }
+
+            document.getElementById('timerBtn').addEventListener('click', () => {
+                // resume audio context on first gesture if needed
+                if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => { });
+                createTimer(4 * 60 * 1000); // default 4 minutes
+            });
+
+            // Long-press -> show clock selector for custom minutes
+            (function () {
+                const btn = document.getElementById('timerBtn');
+                const overlay = document.getElementById('clockOverlay');
+                const canvas = document.getElementById('clockCanvas');
+                const valueEl = document.getElementById('clockValue');
+                const cancelBtn = document.getElementById('clockCancel');
+                const setBtn = document.getElementById('clockSet');
+                let pressTimer = null;
+                let selectedMin = 5;
+                let dragging = false;
+
+                function showClock() { overlay.style.display = 'flex'; overlay.setAttribute('aria-hidden', 'false'); drawClock(selectedMin); }
+                function hideClock() { overlay.style.display = 'none'; overlay.setAttribute('aria-hidden', 'true'); }
+
+                function drawClock(min) {
+                    const ctx = canvas.getContext('2d');
+                    const w = canvas.width, h = canvas.height, cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 6;
+                    ctx.clearRect(0, 0, w, h);
+                    // face
+                    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = '#0b1220'; ctx.fill();
+                    // hour markers (we'll show 12 numbers representing minutes multiples of 5)
+                    ctx.save(); ctx.translate(cx, cy);
+                    for (let i = 0; i < 12; i++) {
+                        const angle = -Math.PI / 2 + (i / 12) * Math.PI * 2;
+                        const tx = Math.cos(angle) * (r - 40);
+                        const ty = Math.sin(angle) * (r - 40) + 6;
+                        ctx.fillStyle = '#ddd'; ctx.font = '14px Inter, system-ui, sans-serif'; ctx.textAlign = 'center';
+                        const num = (i * 5) % 60; ctx.fillText(num.toString(), tx, ty);
+                    }
+                    ctx.restore();
+                    // minute hand
+                    const angle = -Math.PI / 2 + (min / 60) * Math.PI * 2;
+                    ctx.beginPath(); ctx.strokeStyle = '#27a0ff'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(angle) * (r - 60), cy + Math.sin(angle) * (r - 60)); ctx.stroke();
+                    // center
+                    ctx.beginPath(); ctx.fillStyle = '#fff'; ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+                    valueEl.textContent = `${min} min`;
+                }
+
+                function pointerToMinutes(px, py) {
+                    const rect = canvas.getBoundingClientRect();
+                    const cx = rect.left + rect.width / 2; const cy = rect.top + rect.height / 2;
+                    const angle = Math.atan2(py - cy, px - cx);
+                    let deg = angle + Math.PI / 2; if (deg < 0) deg += Math.PI * 2;
+                    const min = Math.round((deg / (Math.PI * 2)) * 60);
+                    return Math.max(0, Math.min(60, min));
+                }
+
+                canvas.addEventListener('pointerdown', e => { dragging = true; canvas.setPointerCapture(e.pointerId); selectedMin = pointerToMinutes(e.clientX, e.clientY); drawClock(selectedMin); });
+                canvas.addEventListener('pointermove', e => { if (dragging) { selectedMin = pointerToMinutes(e.clientX, e.clientY); drawClock(selectedMin); } });
+                canvas.addEventListener('pointerup', e => { dragging = false; try { canvas.releasePointerCapture(e.pointerId); } catch (_) { } });
+
+                function startPress() { pressTimer = setTimeout(() => { showClock(); }, 500); }
+                function cancelPress() { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+
+                btn.addEventListener('pointerdown', startPress);
+                btn.addEventListener('pointerup', e => { if (pressTimer) { cancelPress(); /* it's a click -> default behavior will run */ } });
+                btn.addEventListener('pointercancel', cancelPress);
+                btn.addEventListener('pointerleave', cancelPress);
+
+                cancelBtn.addEventListener('click', hideClock);
+                setBtn.addEventListener('click', () => { hideClock(); const mins = Math.max(0, selectedMin || 0); if (mins > 0) { if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => { }); createTimer(mins * 60 * 1000); } });
+                overlay.addEventListener('click', e => { if (e.target === overlay) hideClock(); });
+            })();
+
+            // Fetch action for star button: get H1 from https://sky-net.no/menu using AllOrigins
+            (function () {
+                const fetchBtn = document.getElementById('fetchBtn');
+                const toast = document.getElementById('toast');
+                function showToast(text, ttl = 4000) { toast.textContent = text; toast.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => { toast.style.display = 'none'; }, ttl); }
+
+                fetchBtn.addEventListener('click', async () => {
+                    const target = 'https://sky-net.no/menu';
+                    const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(target);
+                    showToast('Fetching…');
+                    try {
+                        const res = await fetch(url, { cache: 'no-store' });
+                        if (!res.ok) throw new Error('Network error: ' + res.status);
+                        const text = await res.text();
+                        // parse HTML and query selector: body > div > main > main > div.flex-col.justify-start.gap-2.flex > div > h1
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(text, 'text/html');
+                        const sel = 'body > div > main > main > div.flex-col.justify-start.gap-2.flex > div > h1';
+                        const h1 = doc.querySelector(sel);
+                        if (!h1) {
+                            showToast('❌ selector not found on remote page');
+                            return;
+                        }
+                        const content = h1.textContent.trim();
+                        // plate + fork emoji
+                        showToast('🍴 ' + content, 10000);
+                    } catch (err) {
+                        console.error(err);
+                        let msg = 'Fetch failed';
+                        if (err.name === 'TypeError') msg = 'Network/CORS error or blocked by browser';
+                        showToast('⚠️ ' + msg);
+                    }
+                });
+            })();
+        })();
+    </script>
+
+</body>
+
+</html>
